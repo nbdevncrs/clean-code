@@ -1,10 +1,10 @@
 namespace Markdown.Parsing.Nodes;
 
-public class ParagraphNode : BlockNode
+public class ParagraphNode : BlockTypeNode
 {
-    public List<InlineNode> Inlines { get; }
+    public List<InlineTypeNode> Inlines { get; }
 
-    public ParagraphNode(List<InlineNode> inlines)
+    public ParagraphNode(List<InlineTypeNode> inlines)
     {
         Inlines = inlines;
     }

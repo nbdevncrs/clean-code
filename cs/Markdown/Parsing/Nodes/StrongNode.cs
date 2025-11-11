@@ -1,10 +1,10 @@
 namespace Markdown.Parsing.Nodes;
 
-public class StrongNode : InlineNode
+public class StrongNode : InlineTypeNode
 {
-    public List<InlineNode> Children { get; }
+    public List<InlineTypeNode> Children { get; }
 
-    public StrongNode(List<InlineNode> children)
+    public StrongNode(List<InlineTypeNode> children)
     {
         Children = children;
     }

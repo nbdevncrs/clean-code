@@ -1,11 +1,11 @@
 namespace Markdown.Parsing.Nodes;
 
-public class LinkNode : InlineNode
+public class LinkNode : InlineTypeNode
 {
-    public List<InlineNode> Children { get; }
+    public List<InlineTypeNode> Children { get; }
     public string Url { get; }
 
-    public LinkNode(List<InlineNode> children, string url)
+    public LinkNode(List<InlineTypeNode> children, string url)
     {
         Children = children;
         Url = url;

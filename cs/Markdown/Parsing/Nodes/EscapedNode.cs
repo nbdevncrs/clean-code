@@ -1,6 +1,6 @@
 namespace Markdown.Parsing.Nodes;
 
-public class EscapedNode : InlineNode
+public class EscapedNode : InlineTypeNode
 {
     public char EscapedChar { get; }
 

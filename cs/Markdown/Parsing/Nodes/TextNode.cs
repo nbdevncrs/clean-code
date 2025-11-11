@@ -1,6 +1,6 @@
 namespace Markdown.Parsing.Nodes;
 
-public class TextNode : InlineNode
+public class TextNode : InlineTypeNode
 {
     public string Text { get; }
 
