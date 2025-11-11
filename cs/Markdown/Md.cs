@@ -1,10 +1,15 @@
 namespace Markdown;
 
+using Tokenizing;
+using Parsing;
+using Rendering;
+
 public class Md
 {
-    public string Render(string textToRender)
+    public static string Render(string textToRender)
     {
-        // Tokenizer -> Parser -> Renderer
-        throw new NotImplementedException();
+        var tokens = Tokenizer.Tokenize(textToRender);
+        var document = Parser.Parse(tokens);
+        return HtmlRenderer.Render(document);
     }
 }
