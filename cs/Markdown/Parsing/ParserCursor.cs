@@ -2,23 +2,30 @@ using Markdown.Tokenizing;
 
 namespace Markdown.Parsing;
 
-public class ParserCursor
+public class ParserCursor(IList<Token> tokens)
 {
-    public bool End => throw new NotImplementedException();
-    public Token Current => throw new NotImplementedException();
-
-    public ParserCursor(List<Token> tokens)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void Move()
-    {
-        throw new NotImplementedException();
-    }
+    private int index;
+    public bool End => index >= tokens.Count - 1;
+    public int Index => index;
+    public Token Current => !End ? tokens[index] : tokens[^1];
 
     public Token Peek()
     {
-        throw new NotImplementedException();
+        var nextIndex = index + 1;
+        return nextIndex < tokens.Count ? tokens[nextIndex] : tokens[^1];
+    }
+
+    public void MoveNext()
+    {
+        if (!End) index++;
+    }
+
+    public void IndexJumpTo(int newIndex)
+    {
+        if (newIndex < 0) newIndex = 0;
+
+        if (newIndex >= tokens.Count) newIndex = tokens.Count - 1;
+
+        index = newIndex;
     }
 }
