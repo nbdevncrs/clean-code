@@ -1,11 +1,16 @@
+using System.Text;
+
 namespace Markdown.Parsing.Nodes;
 
-public class ParagraphNode : BlockTypeNode
+public class ParagraphNode(List<InlineTypeNode> inlines) : BlockTypeNode
 {
-    public List<InlineTypeNode> Inlines { get; }
+    public List<InlineTypeNode> Inlines { get; } = inlines;
 
-    public ParagraphNode(List<InlineTypeNode> inlines)
+    public override void RenderHtml(StringBuilder sb)
     {
-        Inlines = inlines;
+        sb.Append("<p>");
+        foreach (var inline in Inlines)
+            inline.RenderHtml(sb);
+        sb.Append("</p>");
     }
 }

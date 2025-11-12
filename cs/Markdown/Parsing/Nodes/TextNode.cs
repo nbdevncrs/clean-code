@@ -1,11 +1,14 @@
+using System.Text;
+using Markdown.Rendering;
+
 namespace Markdown.Parsing.Nodes;
 
-public class TextNode : InlineTypeNode
+public class TextNode(string text) : InlineTypeNode
 {
-    public string Text { get; }
+    public string Text { get; } = text;
 
-    public TextNode(string text)
+    public override void RenderHtml(StringBuilder sb)
     {
-        Text = text;
+        sb.Append(HtmlRenderer.EscapeHtml(Text));
     }
 }

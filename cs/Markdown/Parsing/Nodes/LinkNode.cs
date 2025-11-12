@@ -1,13 +1,19 @@
+using System.Text;
+using Markdown.Rendering;
+
 namespace Markdown.Parsing.Nodes;
 
-public class LinkNode : InlineTypeNode
+public class LinkNode(List<InlineTypeNode> children, string url) : InlineTypeNode
 {
-    public List<InlineTypeNode> Children { get; }
-    public string Url { get; }
+    public List<InlineTypeNode> Children { get; } = children;
+    public string Url { get; } = url;
 
-    public LinkNode(List<InlineTypeNode> children, string url)
+    public override void RenderHtml(StringBuilder sb)
     {
-        Children = children;
-        Url = url;
+        var href = HtmlRenderer.EscapeHtml(Url);
+        sb.Append("<a href=\"").Append(href).Append("\">");
+        foreach (var child in Children)
+            child.RenderHtml(sb);
+        sb.Append("</a>");
     }
 }

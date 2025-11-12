@@ -1,11 +1,14 @@
+using System.Text;
+using Markdown.Rendering;
+
 namespace Markdown.Parsing.Nodes;
 
-public class EscapedNode : InlineTypeNode
+public class EscapedNode(char escapedChar) : InlineTypeNode
 {
-    public char EscapedChar { get; }
+    public char EscapedChar { get; } = escapedChar;
 
-    public EscapedNode(char escapedChar)
+    public override void RenderHtml(StringBuilder sb)
     {
-        EscapedChar = escapedChar;
+        sb.Append(HtmlRenderer.EscapeHtml(EscapedChar.ToString()));
     }
 }

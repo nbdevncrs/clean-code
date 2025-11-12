@@ -1,11 +1,14 @@
+using System.Text;
+
 namespace Markdown.Parsing.Nodes;
 
-public class RootNode : INode
+public class RootNode(List<BlockTypeNode> blocks) : INode
 {
-    public List<BlockTypeNode> Blocks { get; }
+    public List<BlockTypeNode> Blocks { get; } = blocks;
 
-    public RootNode(List<BlockTypeNode> blocks)
+    public void RenderHtml(StringBuilder sb)
     {
-        Blocks = blocks;
+        foreach (var block in Blocks)
+            block.RenderHtml(sb);
     }
 }

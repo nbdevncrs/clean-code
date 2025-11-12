@@ -1,11 +1,16 @@
+using System.Text;
+
 namespace Markdown.Parsing.Nodes;
 
-public class EmNode : InlineTypeNode
+public class EmNode(List<InlineTypeNode> children) : InlineTypeNode
 {
-    public List<InlineTypeNode> Children { get; }
+    public List<InlineTypeNode> Children { get; } = children;
 
-    public EmNode(List<InlineTypeNode> children)
+    public override void RenderHtml(StringBuilder sb)
     {
-        Children = children;
+        sb.Append("<em>");
+        foreach (var child in Children)
+            child.RenderHtml(sb);
+        sb.Append("</em>");
     }
 }
