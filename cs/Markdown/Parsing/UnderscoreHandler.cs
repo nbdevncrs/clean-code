@@ -5,49 +5,38 @@ namespace Markdown.Parsing;
 
 public static class UnderscoreHandler
 {
-    public static void HandleUnderscores(List<InlineTypeNode> children,
-        List<(TokenType Type, int ChildrenIndex)> underscores, ParserCursor cursor, IList<Token> tokens)
+    public static void HandleUnderscores(
+        List<InlineTypeNode> children,
+        List<(TokenType Type, int ChildrenIndex)> underscores,
+        ParserCursor cursor,
+        IList<Token> tokens)
     {
-        var token = cursor.Current;
-        var isDouble = token.Type == TokenType.DoubleUnderscore;
-
+        var currentToken = cursor.Current;
         var previousToken = tokens.ElementAtOrDefault(cursor.Index - 1);
         var nextToken = tokens.ElementAtOrDefault(cursor.Index + 1);
 
-        if (IsDigitBoundary(previousToken, nextToken))
+        if (IsUnderscoreBetweenDigits(previousToken, nextToken))
         {
-            AddLiteral(children, token.Value, cursor);
+            AddUnderscoreAsLiteral(children, currentToken.Value, cursor);
             return;
         }
 
-        var canClose = !IsWhitespaceLike(previousToken);
-        var nextIsWhitespaceLike = IsWhitespaceLike(nextToken);
-
-        if (canClose)
+        if (!IsTokenWhitespaceLike(previousToken))
         {
-            var closeResult = TryToClose(underscores, token.Type, children);
-
-            if (closeResult == 1)
-            {
-                cursor.MoveNext();
+            if (TryCloseExistingHighlight(underscores, currentToken, children, cursor))
                 return;
-            }
-
-            if (closeResult == -1)
-            {
-                AddLiteral(children, token.Value, cursor);
-                return;
-            }
         }
 
-        if (nextIsWhitespaceLike || isDouble && CheckIfDoubleUnderscoreBreaks(cursor, tokens))
+        if (IsTokenWhitespaceLike(nextToken) ||
+            (currentToken.Type == TokenType.DoubleUnderscore && DoesDoubleUnderscoreBreak(cursor, tokens)))
         {
-            AddLiteral(children, token.Value, cursor);
-            return;
+            AddUnderscoreAsLiteral(children, currentToken.Value, cursor);
         }
-
-        underscores.Add((token.Type, children.Count));
-        cursor.MoveNext();
+        else
+        {
+            underscores.Add((currentToken.Type, children.Count));
+            cursor.MoveNext();
+        }
     }
 
     public static void InsertUnmatchedUnderscores(List<InlineTypeNode> children,
@@ -61,54 +50,105 @@ public static class UnderscoreHandler
         }
     }
 
-    private static int TryToClose(List<(TokenType Type, int ChildrenIndex)> underscores, TokenType closingType,
-        List<InlineTypeNode> children)
+    private static bool TryCloseExistingHighlight(
+        List<(TokenType Type, int ChildrenIndex)> underscores,
+        Token currentToken,
+        List<InlineTypeNode> children,
+        ParserCursor cursor)
     {
-        for (var j = underscores.Count - 1; j >= 0; j--)
+        var highlightingType = currentToken.Type;
+
+        var openerIndex = FindMatchingOpenerIndex(underscores, highlightingType);
+        if (openerIndex < 0) return false;
+
+        var openerUnderscore = underscores[openerIndex];
+        var startIndex = openerUnderscore.ChildrenIndex;
+        var innerTokensCount = children.Count - startIndex;
+
+        if (innerTokensCount == 0) return false;
+
+        var innerTokens = children.GetRange(startIndex, innerTokensCount);
+
+        if (!IsValidHighlighting(underscores, highlightingType, openerUnderscore, innerTokens)) return false;
+
+        if (HasIntersection(underscores, openerUnderscore, highlightingType, children, openerIndex, out var innerIndex))
         {
-            if (underscores[j].Type != closingType)
-                continue;
-
-            var opener = underscores[j];
-            var startIndex = opener.ChildrenIndex;
-            var count = children.Count - startIndex;
-
-            if (count == 0)
-                return 0;
-
-            var inner = children.GetRange(startIndex, count);
-
-            if (closingType == TokenType.Underscore)
-            {
-                var insideDouble = underscores.Any(d =>
-                    d.Type == TokenType.DoubleUnderscore &&
-                    d.ChildrenIndex < opener.ChildrenIndex);
-
-                if (!insideDouble &&
-                    inner.Any(n => n is TextNode t && t.Text.Any(char.IsWhiteSpace)))
-                    return 0;
-            }
-
-            for (var k = j + 1; k < underscores.Count; k++)
-            {
-                if (underscores[k].Type == closingType ||
-                    underscores[k].ChildrenIndex <= opener.ChildrenIndex ||
-                    underscores[k].ChildrenIndex >= children.Count) continue;
-
-                InsertIntersection(children, underscores, opener, underscores[k], j, k);
-                return -1;
-            }
-
-            children.RemoveRange(startIndex, count);
-            InlineTypeNode node = closingType == TokenType.DoubleUnderscore ? new StrongNode(inner) : new EmNode(inner);
-
-            children.Add(node);
-            underscores.RemoveAt(j);
-
-            return 1;
+            InsertIntersection(children, underscores, openerUnderscore, underscores[innerIndex], openerIndex, innerIndex);
+            AddUnderscoreAsLiteral(children, currentToken.Value, cursor);
+            return true;
         }
 
-        return 0;
+        CloseHighlight(children, underscores, openerIndex, highlightingType, innerTokens, startIndex);
+        cursor.MoveNext();
+        return true;
+    }
+
+    private static int FindMatchingOpenerIndex(List<(TokenType Type, int ChildrenIndex)> underscores, TokenType type)
+    {
+        for (var i = underscores.Count - 1; i >= 0; i--)
+        {
+            if (underscores[i].Type == type) return i;
+        }
+
+        return -1;
+    }
+
+    private static bool IsValidHighlighting(
+        List<(TokenType Type, int ChildrenIndex)> underscores,
+        TokenType highlightingType,
+        (TokenType Type, int ChildrenIndex) openerUnderscore,
+        List<InlineTypeNode> innerTokens)
+    {
+        if (highlightingType != TokenType.Underscore) return true;
+
+        var highlightingIsInsideDoubleUnderscore = underscores.Any(underscore =>
+            underscore.Type == TokenType.DoubleUnderscore &&
+            underscore.ChildrenIndex < openerUnderscore.ChildrenIndex);
+
+        var areThereAnyWhitespaces = innerTokens.Any(t => t is TextNode tn && tn.Text.Any(char.IsWhiteSpace));
+
+        return highlightingIsInsideDoubleUnderscore || !areThereAnyWhitespaces;
+    }
+
+    private static bool HasIntersection(
+        List<(TokenType Type, int ChildrenIndex)> underscores,
+        (TokenType Type, int ChildrenIndex) opener,
+        TokenType highlightingType,
+        List<InlineTypeNode> children,
+        int openerIndex,
+        out int intersectionIndex)
+    {
+        for (var i = openerIndex + 1; i < underscores.Count; i++)
+        {
+            if (underscores[i].Type == highlightingType ||
+                underscores[i].ChildrenIndex <= opener.ChildrenIndex ||
+                underscores[i].ChildrenIndex >= children.Count)
+                continue;
+
+            intersectionIndex = i;
+            return true;
+        }
+
+        intersectionIndex = -1;
+        return false;
+    }
+
+    private static void CloseHighlight(
+        List<InlineTypeNode> children,
+        List<(TokenType Type, int ChildrenIndex)> underscores,
+        int openerIndex,
+        TokenType highlightingType,
+        List<InlineTypeNode> innerTokens,
+        int startIndex)
+    {
+        children.RemoveRange(startIndex, innerTokens.Count);
+
+        InlineTypeNode node = highlightingType == TokenType.DoubleUnderscore
+            ? new StrongNode(innerTokens)
+            : new EmNode(innerTokens);
+
+        children.Add(node);
+        underscores.RemoveAt(openerIndex);
     }
 
     private static void InsertIntersection(
@@ -128,13 +168,13 @@ public static class UnderscoreHandler
         underscores.RemoveAt(openerIndex);
     }
 
-    private static void AddLiteral(List<InlineTypeNode> children, string value, ParserCursor cursor)
+    private static void AddUnderscoreAsLiteral(List<InlineTypeNode> children, string value, ParserCursor cursor)
     {
         children.Add(new TextNode(value));
         cursor.MoveNext();
     }
 
-    private static bool IsWhitespaceLike(Token? token)
+    private static bool IsTokenWhitespaceLike(Token? token)
     {
         return token == null ||
                token.Type == TokenType.Whitespace ||
@@ -142,14 +182,16 @@ public static class UnderscoreHandler
                token.Type == TokenType.EndOfFile;
     }
 
-    private static bool IsDigitBoundary(Token? prev, Token? next)
+    private static bool IsUnderscoreBetweenDigits(Token? previousToken, Token? nextToken)
     {
-        var before = prev is { Type: TokenType.Text, Value.Length: > 0 } && char.IsDigit(prev.Value.Last());
-        var after = next is { Type: TokenType.Text, Value.Length: > 0 } && char.IsDigit(next.Value.First());
-        return before && after;
+        var leftTokenIsDigit = previousToken is { Type: TokenType.Text, Value.Length: > 0 } &&
+                               char.IsDigit(previousToken.Value.Last());
+        var rightTokenIsDigit = nextToken is { Type: TokenType.Text, Value.Length: > 0 } &&
+                                char.IsDigit(nextToken.Value.First());
+        return leftTokenIsDigit && rightTokenIsDigit;
     }
 
-    private static bool CheckIfDoubleUnderscoreBreaks(ParserCursor cursor, IList<Token> tokens)
+    private static bool DoesDoubleUnderscoreBreak(ParserCursor cursor, IList<Token> tokens)
     {
         var singleUnderscoresCount = 0;
 
@@ -161,8 +203,8 @@ public static class UnderscoreHandler
             if (currentToken.Type == TokenType.DoubleUnderscore) return (singleUnderscoresCount % 2) == 1;
             if (currentToken.Type != TokenType.Underscore) continue;
 
-            var previous = tokens.ElementAtOrDefault(i - 1);
-            if (previous is { Type: TokenType.Escape }) continue;
+            var previousToken = tokens.ElementAtOrDefault(i - 1);
+            if (previousToken is { Type: TokenType.Escape }) continue;
 
             singleUnderscoresCount++;
         }
